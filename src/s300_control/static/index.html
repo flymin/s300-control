@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="black">
   <head>
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
-    <meta name="theme-color" content="#151a19" />
+    <meta name="theme-color" content="#0b0e14" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="S300" />
     <meta
       name="description"
-      content="S300 的随身调音台，六段 EQ 与音量控制。"
+      content="S300 的随身调音台，音效模式、六段 DIY EQ 与音量控制。"
     />
     <title>S300 · 调音台</title>
     <link rel="manifest" href="./manifest.webmanifest" />
@@ -23,24 +23,24 @@
       rel="icon"
       type="image/svg+xml"
       sizes="any"
-      href="./icons/v2/icon.svg"
+      href="./icons/v4/black/icon.svg"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="32x32"
-      href="./icons/v2/app-32.png"
+      href="./icons/v4/black/app-32.png"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="192x192"
-      href="./icons/v2/app-192.png"
+      href="./icons/v4/black/app-192.png"
     />
     <link
       rel="apple-touch-icon"
       type="image/png"
-      href="./icons/v2/apple-touch-icon-1024-v3.png"
+      href="./icons/v4/black/apple-touch-icon-1024.png"
     />
     <link rel="stylesheet" href="./app.css" />
     <script src="./app.js" defer></script>
@@ -49,7 +49,19 @@
     <main class="app">
       <header class="topbar">
         <div class="brand">
-          <img src="./icons/v2/icon.svg" alt="" width="40" height="40" />
+          <svg class="brand-icon" viewBox="0 0 1024 1024" width="40" height="40" aria-hidden="true">
+            <rect width="1024" height="1024" rx="240" fill="var(--accent)" />
+            <g fill="var(--accent-ink)">
+              <rect x="280" y="264" width="44" height="496" rx="22" />
+              <rect x="490" y="210" width="44" height="604" rx="22" />
+              <rect x="700" y="264" width="44" height="496" rx="22" />
+              <g stroke="var(--accent)" stroke-width="18">
+                <rect x="214" y="378" width="176" height="92" rx="28" />
+                <rect x="424" y="574" width="176" height="92" rx="28" />
+                <rect x="634" y="330" width="176" height="92" rx="28" />
+              </g>
+            </g>
+          </svg>
           <div>
             <h1>S300 <span>调音台</span></h1>
             <p>让声音，合你心意。</p>
@@ -65,20 +77,94 @@
         </button>
       </header>
       <div class="devicebar">
-        <span class="connection" id="connection" role="status"
-          ><i></i><span>正在连接…</span></span
+        <span class="connection connecting" id="connection" role="status"
+          ><i aria-hidden="true"></i><span>正在连接…</span></span
         ><span id="deviceName">寻找局域网音箱</span
         ><button class="text-button" id="rescan">
           重新搜索 <span aria-hidden="true">↻</span>
         </button>
       </div>
       <div class="notice" id="notice" role="status" hidden></div>
-      <div class="layout">
-        <section class="panel equalizer" aria-labelledby="eqHeading">
+      <div class="overview" id="overview">
+        <section class="panel device-panel" id="devicePanel" aria-labelledby="deviceHeading">
+          <div class="subheading">
+            <h2 id="deviceHeading">音箱</h2>
+            <span class="auto-tag">自动发现</span>
+          </div>
+          <select id="deviceSelect" aria-label="选择音箱" hidden></select>
+          <dl>
+            <div>
+              <dt>设备</dt>
+              <dd id="infoName">—</dd>
+            </div>
+            <div>
+              <dt>局域网地址</dt>
+              <dd id="infoHost">—</dd>
+            </div>
+            <div>
+              <dt>固件</dt>
+              <dd id="infoFirmware">—</dd>
+            </div>
+          </dl>
+        </section>
+        <section class="panel volume-panel" id="volumePanel" aria-labelledby="volumeHeading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">LISTENING LEVEL</p>
+              <h2 id="volumeHeading">音量</h2>
+            </div>
+            <button class="button quiet" id="mute" disabled>静音</button>
+          </div>
+          <div class="volume-readout">
+            <span id="volumeValue">—</span><span id="volumeMax">/ 30</span
+            ><span class="small-status" id="volumeStatus">等待连接</span>
+          </div>
+          <div class="volume-controls">
+            <button
+              class="step"
+              id="volumeDown"
+              disabled
+              aria-label="降低音量"
+            >
+              −</button
+            ><input
+              id="volume"
+              type="range"
+              min="0"
+              max="30"
+              step="1"
+              value="0"
+              aria-label="音量"
+              disabled
+            /><button
+              class="step"
+              id="volumeUp"
+              disabled
+              aria-label="提高音量"
+            >
+              ＋
+            </button>
+          </div>
+          <p class="volume-hint">拖动调整，松手即定。</p>
+        </section>
+      </div>
+      <section class="panel mode-panel" aria-labelledby="modeHeading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">SOUND MODE</p>
+            <h2 id="modeHeading">音效模式</h2>
+          </div>
+          <span class="mode-status" id="modeStatus" role="status">等待连接</span>
+        </div>
+        <div class="mode-options" id="modeOptions" role="group" aria-label="选择音效模式"></div>
+        <p class="mode-hint" id="modeHint">连接后读取音箱当前的音效模式。</p>
+      </section>
+      <div class="layout" id="layout" hidden>
+        <section class="panel equalizer" id="eqPanel" aria-labelledby="eqHeading" hidden>
           <div class="panel-heading">
             <div>
               <p class="eyebrow">SOUND SHAPING</p>
-              <h2 id="eqHeading">六段均衡器</h2>
+              <h2 id="eqHeading">DIY 六段均衡器</h2>
             </div>
             <div class="eq-actions">
               <button class="button quiet" id="reset" disabled>归零</button
@@ -95,8 +181,8 @@
             <svg viewBox="0 0 600 76" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#bcf28a" stop-opacity=".21" />
-                  <stop offset="100%" stop-color="#bcf28a" stop-opacity="0" />
+                  <stop offset="0%" stop-color="var(--secondary)" stop-opacity=".21" />
+                  <stop offset="100%" stop-color="var(--secondary)" stop-opacity="0" />
                 </linearGradient>
               </defs>
               <path class="curve-grid" d="M12 12H588M12 38H588M12 64H588" />
@@ -104,11 +190,11 @@
               <path
                 id="curveLine"
                 fill="none"
-                stroke="#bcf28a"
+                stroke="var(--secondary)"
                 stroke-width="2.5"
                 vector-effect="non-scaling-stroke"
               />
-              <g id="curvePoints" fill="#bcf28a" />
+              <g id="curvePoints" fill="var(--secondary)" />
             </svg>
           </div>
           <div class="eq-sliders" id="eqSliders" aria-label="六段 EQ"></div>
@@ -124,47 +210,7 @@
           <div class="presets" id="presets"></div>
         </section>
         <aside class="side">
-          <section class="panel volume-panel" aria-labelledby="volumeHeading">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">LISTENING LEVEL</p>
-                <h2 id="volumeHeading">音量</h2>
-              </div>
-              <button class="button quiet" id="mute" disabled>静音</button>
-            </div>
-            <div class="volume-readout">
-              <span id="volumeValue">—</span><span id="volumeMax">/ 30</span
-              ><span class="small-status" id="volumeStatus">等待连接</span>
-            </div>
-            <div class="volume-controls">
-              <button
-                class="step"
-                id="volumeDown"
-                disabled
-                aria-label="降低音量"
-              >
-                −</button
-              ><input
-                id="volume"
-                type="range"
-                min="0"
-                max="30"
-                step="1"
-                value="0"
-                aria-label="音量"
-                disabled
-              /><button
-                class="step"
-                id="volumeUp"
-                disabled
-                aria-label="提高音量"
-              >
-                ＋
-              </button>
-            </div>
-            <p class="volume-hint">拖动调整，松手即定。</p>
-          </section>
-          <section class="panel library-panel" aria-labelledby="libraryHeading">
+          <section class="panel library-panel" id="libraryPanel" aria-labelledby="libraryHeading" hidden>
             <div class="subheading">
               <h2 id="libraryHeading">我的曲线</h2>
               <span id="presetCount">0 条</span>
@@ -172,27 +218,6 @@
             <div id="customPresets" class="custom-presets">
               <p class="empty">把喜欢的声音保存下来。</p>
             </div>
-          </section>
-          <section class="panel device-panel" aria-labelledby="deviceHeading">
-            <div class="subheading">
-              <h2 id="deviceHeading">音箱</h2>
-              <span class="auto-tag">自动发现</span>
-            </div>
-            <select id="deviceSelect" aria-label="选择音箱" hidden></select>
-            <dl>
-              <div>
-                <dt>设备</dt>
-                <dd id="infoName">—</dd>
-              </div>
-              <div>
-                <dt>局域网地址</dt>
-                <dd id="infoHost">—</dd>
-              </div>
-              <div>
-                <dt>固件</dt>
-                <dd id="infoFirmware">—</dd>
-              </div>
-            </dl>
           </section>
         </aside>
       </div>
@@ -246,7 +271,7 @@
         </button>
       </div>
       <img
-        src="./icons/v2/app-512.png"
+        src="./icons/v4/black/app-512.png"
         class="install-icon"
         alt="S300 app 图标"
         width="64"

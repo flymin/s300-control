@@ -16,14 +16,15 @@ from urllib.parse import unquote, urlsplit
 import uuid
 
 from .discovery import discover
-from .protocol import BANDS, DeviceError, SpeakerConnection, eq_fields, gains_from
+from .protocol import BANDS, SOUND_MODES, DeviceError, SpeakerConnection, eq_fields, gains_from, mode_fields, mode_from
 
 LOG = logging.getLogger("s300")
 ROOT = Path(__file__).resolve().parent
 DEFAULTS = {"bind": "0.0.0.0", "port": 18730, "discovery_port": 6000,
             "discovery_timeout": 1.5, "discovery_interval": 30, "device_ttl": 100,
             "connect_timeout": 3, "poll_interval": 4, "preferred_uuid": "",
-            "interfaces": [], "broadcast_targets": [], "model_filter": "S300"}
+            "interfaces": [], "broadcast_targets": [], "model_filter": "S300", "theme": "black"}
+THEME_COLORS = {"black": "#0b0e14", "white": "#e8edf2", "coffee": "#282828"}
 BUILTINS = [
     {"id": "flat", "name": "原声", "description": "平直自然", "gains": [0, 0, 0, 0, 0, 0]},
     {"id": "bass", "name": "低音", "description": "更有分量", "gains": [10, 5, 0, 0, 0, 0]},
@@ -32,6 +33,20 @@ BUILTINS = [
     {"id": "clear", "name": "明亮", "description": "细节通透", "gains": [0, 0, 0, 5, 10, 5]},
     {"id": "night", "name": "夜间", "description": "收敛低频", "gains": [-10, -5, 5, 5, 0, -5]},
 ]
+
+
+class ControlConflict(DeviceError):
+    pass
+
+
+class ModeConflict(ControlConflict):
+    pass
+
+
+def validate_mode(index):
+    if type(index) is not int or not 0 <= index <= 4:
+        raise ValueError("音效模式需要 0～4 的整数")
+    return index
 
 
 def validate_gains(gains):
@@ -54,6 +69,8 @@ def load_config(path):
     for key in ("discovery_timeout", "discovery_interval", "device_ttl", "connect_timeout", "poll_interval"):
         if not isinstance(config[key], (int, float)) or config[key] <= 0:
             raise ValueError("Invalid configuration: " + key)
+    if not isinstance(config["theme"], str) or config["theme"] not in THEME_COLORS:
+        raise ValueError("theme must be black, white, or coffee")
     return config
 
 
@@ -116,6 +133,7 @@ class Controller:
         self.instance_id = uuid.uuid4().hex
         self.revision, self.last_seen = 0, None
         self.connection = None
+        self.connection_epoch = 0
         self.threads = []
 
     def start(self):
@@ -133,6 +151,7 @@ class Controller:
                     self.devices.update(found)
                     cutoff = time.time() - self.config["device_ttl"]
                     self.devices = {k: v for k, v in self.devices.items() if v["discovered_at"] >= cutoff}
+                    self.revision += 1
             except OSError as exc:
                 LOG.warning("Discovery: %s", exc)
             self.rescan.wait(self.config["discovery_interval"])
@@ -151,15 +170,18 @@ class Controller:
             state = None if self.raw is None else {
                 "volume": player.get("volume"), "max_volume": player.get("maxVolume", 30),
                 "min_volume": player.get("minVolume", 0), "gains": gains_from(raw),
-                "eq_active": effect.get("soundIndex") == 1 and effect.get("selectedIndex") == 4,
+                "sound_index": effect.get("soundIndex"), "selected_index": mode_from(raw),
+                "eq_active": mode_from(raw) == 4,
                 "firmware": info.get("firmwareVersion", ""), "wifi": info.get("wifiName", ""),
                 "name": info.get("airplayName", "EDIFIER S300"),
             }
             return {"connection": self.status, "error": self.error,
+                    "connection_epoch": self.connection_epoch,
                     "device": copy.deepcopy(self.device), "devices": copy.deepcopy(list(self.devices.values())),
                     "state": state, "instance_id": self.instance_id,
                     "revision": self.revision, "last_seen": self.last_seen,
-                    "bands": list(BANDS), "presets": self.presets.list()}
+                    "bands": list(BANDS), "sound_modes": copy.deepcopy(list(SOUND_MODES)),
+                    "presets": self.presets.list()}
 
     def _choose(self):
         with self.lock:
@@ -170,20 +192,30 @@ class Controller:
             return copy.deepcopy(next(iter(sorted(self.devices.values(), key=lambda d: d["id"])), None))
 
     def _disconnect(self, error):
-        if self.connection:
-            self.connection.close()
-        self.connection = None
         with self.lock:
+            connection, self.connection = self.connection, None
+            self.connection_epoch += 1
             self.status, self.error = "offline", error
+            self.revision += 1
+        if connection:
+            connection.close()
 
     def submit(self, kind, body):
         with self.lock:
             if self.status != "online" or not self.connection:
                 raise DeviceError("音箱尚未连接，请等待自动发现或重新搜索")
             target = self.device["id"]
+            epoch = self.connection_epoch
+            if "context" in body:
+                context = body["context"]
+                if not isinstance(context, dict) or not isinstance(context.get("instance_id"), str) or (
+                        type(context.get("connection_epoch")) is not int) or not isinstance(context.get("device_id"), str):
+                    raise ValueError("控制上下文格式错误")
+                if context != {"instance_id": self.instance_id, "connection_epoch": epoch, "device_id": target}:
+                    raise ControlConflict("音箱连接已变化，请刷新状态后重试")
         future = Future()
         try:
-            self.jobs.put_nowait((kind, body, future, time.monotonic() + 10, target))
+            self.jobs.put_nowait((kind, body, future, time.monotonic() + 10, target, epoch))
         except queue.Full:
             raise DeviceError("操作较多，请稍后重试")
         return future.result(timeout=12)
@@ -193,9 +225,17 @@ class Controller:
             if identity not in self.devices:
                 raise ValueError("请先搜索这台音箱")
             self.selected = identity
+            self.revision += 1
 
     def _execute(self, kind, body):
+        if kind == "mode":
+            index = body["selected_index"]
+            return self.connection.setting(mode_fields(index), lambda s: mode_from(s) == index)
         if kind == "eq":
+            current = self.connection.query()
+            self._ingest(current)
+            if mode_from(current) != 4:
+                raise ModeConflict("请先切换到 DIY 模式后再调整 EQ")
             gains = body["gains"]
             return self.connection.setting(eq_fields(gains, self.raw), lambda s:
                 gains_from(s) == gains and s["soundEffect"].get("soundIndex") == 1
@@ -213,11 +253,15 @@ class Controller:
                 self._disconnect("正在连接所选音箱")
                 with self.lock:
                     self.raw = None
+                    self.revision += 1
                 next_connect = 0
             if not self.connection and candidate and time.monotonic() >= next_connect:
                 with self.lock:
+                    if self.device != candidate:
+                        self.raw = None
                     self.device = candidate
                     self.status, self.error = "connecting", "正在连接音箱"
+                    self.revision += 1
                 try:
                     self.connection = SpeakerConnection(candidate, self.config["connect_timeout"], self._ingest)
                     self._ingest(self.connection.query())
@@ -227,7 +271,7 @@ class Controller:
                     self.rescan.set()
                     next_connect = time.monotonic() + 5
             try:
-                kind, body, future, expiry, target = self.jobs.get(timeout=0.1)
+                kind, body, future, expiry, target, epoch = self.jobs.get(timeout=0.1)
             except queue.Empty:
                 if self.connection and time.monotonic() >= next_poll:
                     try:
@@ -239,12 +283,14 @@ class Controller:
                     next_poll = time.monotonic() + self.config["poll_interval"]
                 continue
             try:
-                if time.monotonic() > expiry or not self.connection or target != self.device["id"] or (
+                if time.monotonic() > expiry or epoch != self.connection_epoch or not self.connection or target != self.device["id"] or (
                         self.selected and self.selected != target):
-                    raise DeviceError("连接已变化，这次设置未执行，请重试")
+                    raise ControlConflict("连接已变化，这次设置未执行，请重试")
                 self._ingest(self._execute(kind, body))
                 future.set_result(self.snapshot())
                 next_poll = time.monotonic() + self.config["poll_interval"]
+            except ControlConflict as exc:
+                future.set_exception(exc)
             except (OSError, DeviceError) as exc:
                 self._disconnect(str(exc))
                 next_connect = time.monotonic() + 5
@@ -306,7 +352,27 @@ class Handler(BaseHTTPRequestHandler):
             ctype = "application/manifest+json"
         if ctype.startswith("text/") or ctype == "application/javascript":
             ctype += "; charset=utf-8"
-        self.respond(200, file.read_bytes(), ctype, "no-cache")
+        data = file.read_bytes()
+        theme = self.server.controller.config["theme"]
+        if file.name == "index.html":
+            html = data.decode("utf-8").replace('data-theme="black"', 'data-theme="' + theme + '"', 1)
+            html = html.replace('name="theme-color" content="#0b0e14"',
+                                'name="theme-color" content="' + THEME_COLORS[theme] + '"', 1)
+            html = html.replace('./icons/v4/black/', './icons/v4/' + theme + '/')
+            if theme == "white":
+                html = html.replace('content="black-translucent"', 'content="default"', 1)
+            data = html.encode("utf-8")
+        elif file.name == "manifest.webmanifest":
+            manifest = json.loads(data)
+            manifest["theme_color"] = manifest["background_color"] = THEME_COLORS[theme]
+            for icon in manifest["icons"]:
+                icon["src"] = icon["src"].replace('./icons/v4/black/', './icons/v4/' + theme + '/')
+            data = json.dumps(manifest, ensure_ascii=False).encode("utf-8")
+        elif file.name == "sw.js":
+            worker = data.decode("utf-8").replace('./icons/v4/black/', './icons/v4/' + theme + '/')
+            worker = worker.replace('s300-shell-v10-black', 's300-shell-v10-' + theme)
+            data = worker.encode("utf-8")
+        self.respond(200, data, ctype, "no-cache")
 
     def do_POST(self):
         try:
@@ -331,6 +397,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/eq":
                 body["gains"] = validate_gains(body.get("gains"))
                 return self.respond(200, controller.submit("eq", body))
+            if path == "/api/mode":
+                body["selected_index"] = validate_mode(body.get("selected_index"))
+                return self.respond(200, controller.submit("mode", body))
             if path == "/api/volume":
                 volume = body.get("volume")
                 state = controller.snapshot()["state"] or {}
@@ -342,14 +411,20 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/device":
                 controller.select(str(body.get("id", "")))
             elif path == "/api/presets":
-                controller.presets.save(body)
+                with controller.lock:
+                    controller.presets.save(body)
+                    controller.revision += 1
             elif path == "/api/presets/delete":
-                controller.presets.delete(body.get("id"))
+                with controller.lock:
+                    controller.presets.delete(body.get("id"))
+                    controller.revision += 1
             else:
                 return self.respond(404, {"error": "接口不存在"})
             self.respond(200, controller.snapshot())
         except (ValueError, KeyError, TypeError) as exc:
             self.respond(400, {"error": str(exc)})
+        except ControlConflict as exc:
+            self.respond(409, {"error": str(exc)})
         except (DeviceError, TimeoutError) as exc:
             self.respond(503, {"error": str(exc) or "音箱响应超时，请重试"})
         except OSError:

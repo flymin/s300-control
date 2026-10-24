@@ -10,8 +10,8 @@ import time
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from s300_control.protocol import eq_fields
-from s300_control.server import Controller, DEFAULTS, Handler, Presets, ThreadingHTTPServer
+from s300_control.protocol import eq_fields, mode_fields, mode_from
+from s300_control.server import Controller, DEFAULTS, Handler, ModeConflict, Presets, ThreadingHTTPServer
 
 
 class PreviewController(Controller):
@@ -19,7 +19,11 @@ class PreviewController(Controller):
         with self.lock:
             raw = copy.deepcopy(self.raw)
             if kind == "eq":
+                if mode_from(raw) != 4:
+                    raise ModeConflict("请先切换到 DIY 模式后再调整 EQ")
                 raw.update(eq_fields(body["gains"], raw))
+            elif kind == "mode":
+                raw["soundEffect"].update(mode_fields(body["selected_index"])["soundEffect"])
             elif kind == "volume":
                 raw["player"]["volume"] = body["volume"]
             self._ingest(raw)
@@ -29,18 +33,21 @@ class PreviewController(Controller):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=18731)
+    parser.add_argument("--mode", type=int, choices=range(5), default=4)
+    parser.add_argument("--theme", choices=("black", "white", "coffee"), default="black")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="s300-preview-") as folder:
         presets = Presets(Path(folder) / "presets.json")
         presets.save({"name": "晚间爵士", "gains": [0, 5, 5, 0, -5, -5]})
         presets.save({"name": "轻柔人声", "gains": [-5, 0, 10, 5, 0, -5]})
-        controller = PreviewController(dict(DEFAULTS), presets)
+        controller = PreviewController(dict(DEFAULTS, theme=args.theme), presets)
         device = {"id": "demo", "name": "EDIFIER S300", "host": "192.0.2.42", "port": 8080,
                   "mac": "02:00:00:00:00:01", "discovered_at": time.time()}
         controller.device, controller.devices = device, {"demo": device}
         controller._ingest({"deviceInfo": {"airplayName": "EDIFIER S300", "firmwareVersion": "01.13.07", "wifiName": "Example Wi-Fi"},
                             "player": {"volume": 8, "minVolume": 0, "maxVolume": 30},
                             **eq_fields([-5, 0, 10, 5, 0, -5], {})})
+        controller.raw["soundEffect"].update(mode_fields(args.mode)["soundEffect"])
         # Deliberately do not start Controller's discovery or TCP threads.
         server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
         server.controller = controller

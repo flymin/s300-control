@@ -5,9 +5,9 @@
 **A small, self-hosted control room for your Edifier S300.**
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-bcf28a?style=flat-square)](LICENSE)
-[![PWA](https://img.shields.io/badge/PWA-Installable-6e8f70?style=flat-square)](#install-on-your-phone)
-[![Runtime dependencies](https://img.shields.io/badge/Runtime_dependencies-0-4b6154?style=flat-square)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-e6b450?style=flat-square)](LICENSE)
+[![PWA](https://img.shields.io/badge/PWA-Installable-687586?style=flat-square)](#install-on-your-phone)
+[![Runtime dependencies](https://img.shields.io/badge/Runtime_dependencies-0-424b59?style=flat-square)](pyproject.toml)
 
 [Quick start](#quick-start) · [Screenshots](#a-familiar-place-for-your-sound) · [Configuration](docs/configuration.md) · [Protocol](docs/protocol.md)
 
@@ -17,7 +17,7 @@ English · [简体中文](README.zh-CN.md)
 
 ---
 
-S300 Control brings the speaker's six-band equalizer to a compact web interface. Drag a band, tap a preset, or save a curve you want to hear again. The backend discovers speakers on its own LAN and verifies every setting by reading it back from the device.
+S300 Control brings the speaker's sound modes, DIY equalizer, and volume to a compact web interface. Choose a factory mode, or select DIY to adjust six bands and save your own curves. The backend discovers speakers on its own LAN and verifies every setting by reading it back from the device.
 
 **This is an independent, unofficial project** and is not affiliated with, endorsed by, or sponsored by Edifier. Product names are used solely to identify compatible devices.
 
@@ -25,19 +25,22 @@ There is no frontend build step, account, cloud relay, or runtime package depend
 
 ## A familiar place for your sound
 
-<img src="docs/assets/desktop.png" alt="Six-band EQ, volume, saved curves, and speaker details on desktop" width="100%">
+<img src="docs/assets/desktop-black.jpg" alt="Black palette: speaker and volume cards above sound modes, with the six-band equalizer and saved curves expanded in DIY mode" width="100%">
+
+*Black palette (Ayu Dark) · DIY mode.*
 
 <details>
 <summary><strong>See the mobile layout</strong></summary>
 <br>
-<img src="docs/assets/mobile.png" alt="The same equalizer in a compact phone layout" width="320">
+<img src="docs/assets/mobile-black.jpg" alt="The same black palette and DIY controls at phone width" width="320">
 </details>
 
 ## What you get
 
 | | |
 | :--- | :--- |
-| **Six bands, one clear view** | 62 Hz to 16 kHz, with drag, step buttons, keyboard controls, and a live curve. |
+| **Sound modes first** | Classic, Monitor, Dynamic, Vocal, and DIY. The interface shows EQ controls only in DIY mode. |
+| **Six DIY bands, one clear view** | 62 Hz to 16 kHz, with drag, step buttons, keyboard controls, and a live curve. |
 | **Quick curves and your own collection** | Six built-in DIY curves; save custom curves and share them across your browsers through the backend. |
 | **Finds its own speaker** | UDP discovery, stable device identity, and automatic reconnection when an address changes. |
 | **Settings you can trust** | One persistent TCP connection, serialized writes, and a fresh device readback after each setting. |
@@ -45,6 +48,8 @@ There is no frontend build step, account, cloud relay, or runtime package depend
 | **Easy to host** | Python standard library at runtime, Docker host networking, a read-only image, and a small configuration directory. |
 
 The speaker supports gains from **−30 to +30 in steps of 5**. These are device gain units; the physical dB conversion has not been established. Quick curves are this project's DIY combinations, not official factory sound modes.
+
+Switching sound modes preserves the stored DIY curve. To edit it, select **DIY** first; factory modes hide the sliders, quick curves, and saved-curve library. Device details, volume, and mode selection stay in place while DIY controls expand below.
 
 ## Quick start
 
@@ -69,6 +74,8 @@ The container runs as UID/GID 1000 by default. If your checkout belongs to anoth
 
 Configuration and saved curves stay in `config/`. See [configuration](docs/configuration.md) for available settings and [deployment](docs/deployment.md) for reverse proxy setup and backups.
 
+Set `theme` in `config/settings.json` to `black`, `white`, or `coffee` to match your speaker, then restart the service. Each palette stays consistent throughout the day; there is no browser theme switch.
+
 ### Run with Python
 
 Python 3.11+ is sufficient for the backend. Linux is recommended for automatic interface discovery.
@@ -88,7 +95,7 @@ The installed command `s300-control` starts the same server. `s300 --url http://
 
 Serve the app through **HTTPS** with your existing reverse proxy. On iPhone, open the HTTPS URL in Safari, choose **Share → Add to Home Screen**, and enable **Open as Web App** if offered. On browsers that support an installation prompt, the app's install button opens it.
 
-On iPhone, the page supplies a single 1024×1024 PNG for the home-screen icon. Other browsers use the multi-resolution and maskable icons in the manifest.
+On iPhone, the page supplies a single opaque 1024×1024 PNG matching the configured palette for the home-screen icon. Other browsers use the matching multi-resolution and maskable icons in the manifest.
 
 The Service Worker caches the interface. Device state and control requests are always live: no cached status and no replay of changes after an outage. An offline interface cannot control an unreachable speaker.
 
@@ -134,10 +141,10 @@ No physical speaker is needed for these tests. They cover fragmented frames, pus
 To explore the UI without a speaker:
 
 ```sh
-python tools/preview.py
+python tools/preview.py --theme black --mode 4
 ```
 
-Open `http://127.0.0.1:18731/`. This preview uses synthetic data and does not start network discovery or a speaker connection. Its saved curves are temporary.
+Open `http://127.0.0.1:18731/`. This preview uses synthetic data and does not start network discovery or a speaker connection. Its saved curves are temporary. `--theme` accepts `black`, `white`, or `coffee`; `--mode` accepts 0–4, and `--port` changes the preview listener.
 
 To regenerate the artwork:
 
@@ -149,8 +156,8 @@ python tools/generate_icons.py
 ## Compatibility and scope
 
 - Protocol behavior has been verified on Edifier S300 firmware **01.13.07**. Other firmware and related Edifier models need independent verification.
-- Implemented controls: six-band DIY EQ and volume, including mute through volume zero.
-- Unverified factory sound modes, input switching, playback commands, shutdown, and factory reset are not exposed.
+- Implemented controls: five sound modes, six-band EQ within DIY mode, and volume, including mute through volume zero.
+- Unverified input switching, playback commands, shutdown, and factory reset are not exposed.
 - A sleeping speaker or its limited connection slots can delay reconnection. Wake it and close unused control clients before retrying.
 
 [Protocol notes](docs/protocol.md) document what was observed and what remains uncertain.

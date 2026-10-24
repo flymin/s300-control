@@ -6,6 +6,13 @@ import time
 
 MAGIC = b"KxZK"
 BANDS = (62, 250, 1000, 4000, 8000, 16000)
+SOUND_MODES = (
+    {"id": 0, "name": "经典", "description": "Classic"},
+    {"id": 1, "name": "监听", "description": "Monitor"},
+    {"id": 2, "name": "动感", "description": "Dynamic"},
+    {"id": 3, "name": "人声", "description": "Vocal"},
+    {"id": 4, "name": "DIY", "description": "自定义 EQ"},
+)
 _id_lock = threading.Lock()
 _last_id = 0
 
@@ -69,6 +76,7 @@ class SpeakerConnection:
         self.parser = FrameParser()
         self.timeout = timeout
         self.on_status = on_status or (lambda x: None)
+        self.latest_status = None
 
     def close(self):
         self.socket.close()
@@ -86,6 +94,7 @@ class SpeakerConnection:
             match = None
             for obj in self.parser.feed(data):
                 if all(k in obj for k in ("player", "soundEffect", "deviceInfo")):
+                    self.latest_status = obj
                     self.on_status(obj)
                 if str(obj.get("id")) == request_id:
                     match = obj
@@ -104,7 +113,7 @@ class SpeakerConnection:
         result = self.request("status_query")
         if not result or not all(k in result for k in ("player", "soundEffect", "deviceInfo")):
             raise DeviceError("音箱未响应，可能正在待机")
-        return result
+        return self.latest_status
 
     def setting(self, fields, matches):
         # A settings acknowledgement is insufficient: verify actual device state.
@@ -123,6 +132,16 @@ def gains_from(state):
     values = {d.get("fPoint", {}).get("value"): d.get("gain", {}).get("value") for d in data}
     gains = [values.get(f) for f in BANDS]
     return gains if all(type(g) is int and -30 <= g <= 30 for g in gains) else None
+
+
+def mode_from(state):
+    effect = state.get("soundEffect", {})
+    index = effect.get("selectedIndex")
+    return index if effect.get("soundIndex") == 1 and type(index) is int and 0 <= index <= 4 else None
+
+
+def mode_fields(index):
+    return {"soundEffect": {"soundIndex": 1, "selectedIndex": index}}
 
 
 def eq_fields(gains, state):

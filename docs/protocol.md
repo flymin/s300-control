@@ -65,10 +65,28 @@ Heartbeat pushes and periodic status broadcasts can arrive without a request. Ma
 
 ## Verified settings
 
+Sound modes use the `soundIndex:1` bank. The S300 keeps this bank fixed; each write includes it explicitly.
+
+| `selectedIndex` | Mode |
+| --- | --- |
+| 0 | Classic / 经典 |
+| 1 | Monitor / 监听 |
+| 2 | Dynamic / 动感 |
+| 3 | Vocal / 人声 |
+| 4 | Custom / DIY |
+
+To switch modes, send only the selector fields:
+
+```json
+{"id":"1700000000002","payload":"settings","soundEffect":{"soundIndex":1,"selectedIndex":1}}
+```
+
+The stored `soundEffectDIY` survives mode switches. Its six gains apply in mode 4; a factory mode's active curve must not be inferred from the stored DIY values. Select mode 4 before editing DIY gains.
+
 Volume:
 
 ```json
-{"id":"1700000000002","payload":"settings","player":{"volume":8}}
+{"id":"1700000000003","payload":"settings","player":{"volume":8}}
 ```
 
 Read `minVolume` and `maxVolume` from the device status rather than inventing another scale.
@@ -77,7 +95,7 @@ DIY equalizer example, showing all six bands:
 
 ```json
 {
-  "id": "1700000000003",
+  "id": "1700000000004",
   "payload": "settings",
   "soundEffect": {
     "soundIndex": 1,
@@ -100,11 +118,11 @@ DIY equalizer example, showing all six bands:
 
 Observed gain bounds are −30 to +30 in increments of 5. The frequency points are fixed. Q was reported as fixed at 7 and could be omitted in verified writes. Existing DIY name and ID are preserved when available; the shown DIY ID is a request-template fallback, not a device identity.
 
-The `(soundIndex=1, selectedIndex=4)` combination has been verified for DIY writes. The complete mapping of official application sound modes remains unconfirmed. Physical gain-to-dB conversion also remains unconfirmed.
+The `(soundIndex=1, selectedIndex=4)` combination has been verified for DIY writes. Slots 0…4 and the fixed bank were checked through device readback; the labels come from Edifier Home's `GetEqBean.getEqBeanList` mapping. Values outside those slots are silently ignored by the tested firmware. Physical gain-to-dB conversion remains unconfirmed.
 
 ## Readback is the acceptance criterion
 
-A sent TCP buffer or successful settings acknowledgement does not prove that the speaker applied the setting. Send a new `status_query`, then compare the returned volume or six gains and DIY mode with the requested values.
+A sent TCP buffer or successful settings acknowledgement does not prove that the speaker applied the setting. Send a new `status_query`, then compare the selected mode, volume, or six gains and DIY mode with the requested values. If a newer complete status push arrives with the matching query reply, use that newer observation so a late reply cannot roll back the reported mode.
 
 Keep writes serialized over one persistent connection. Unbounded reconnections can exhaust the speaker's connection slots. Idle network standby may make discovery or control temporarily unresponsive.
 
@@ -114,4 +132,4 @@ The transport behavior was established through device testing and inspection of 
 
 The official application's release information is available from [Edifier's application metadata endpoint](https://foreign-app.edifier.com/home/api/v1/apps?tag=EdifierHome).
 
-The device advertises additional settings, including factory reset and firmware operations. This project exposes only the independently verified EQ and volume controls.
+The device advertises additional settings, including factory reset and firmware operations. This project exposes the verified sound-mode, DIY EQ, and volume controls.

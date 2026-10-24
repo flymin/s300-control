@@ -15,8 +15,12 @@ assert.ok(wiring > 0, "frontend event wiring must follow the state functions");
 function context() {
   const nodes = new Map();
   const element = () => ({
-    dataset: {}, setAttribute() {}, replaceChildren() {},
-    querySelector: element, classList: { toggle() {}, remove() {} }, textContent: "",
+    dataset: {}, attributes: {}, children: [], textContent: "",
+    setAttribute(key, value) { this.attributes[key] = value; },
+    replaceChildren(...children) { this.children = children; },
+    append(...children) { this.children.push(...children); },
+    addEventListener() {}, close() { this.open = false; },
+    querySelector: element, classList: { toggle() {}, remove() {} },
   });
   const scope = vm.createContext({
     URL, AbortController, setTimeout: () => 1, clearTimeout() {},
@@ -26,7 +30,9 @@ function context() {
         if (!nodes.has(id)) nodes.set(id, element());
         return nodes.get(id);
       },
-      querySelectorAll: () => [], createElement: element,
+      querySelectorAll: (selector) => selector === ".mode-option"
+        ? (nodes.get("modeOptions")?.children || []) : [],
+      createElement: element,
     },
     CSS: { escape: (value) => value },
   });
@@ -34,9 +40,19 @@ function context() {
     renderCurve = renderVolume = renderPresets = toast = () => {};
     renderConnection = updateEnabled;
     function fixture(revision, instance = "first", values = [0,0,0,0,0,0], level = 6) {
-      return {revision, instance_id: instance, connection: "online",
-        state: {gains: values, volume: level, min_volume: 0, max_volume: 30, eq_active: true},
+      return {revision, instance_id: instance, connection_epoch: 0, connection: "online",
+        state: {gains: values, volume: level, min_volume: 0, max_volume: 30,
+          sound_index: 1, selected_index: 4, eq_active: true},
+        sound_modes: [
+          {id:0,name:"经典",description:"Classic"}, {id:1,name:"监听",description:"Monitor"},
+          {id:2,name:"动感",description:"Dynamic"}, {id:3,name:"人声",description:"Vocal"},
+          {id:4,name:"DIY",description:"自定义 EQ"}],
         device: {id: "demo"}, devices: [], presets: []};
+    }
+    function withMode(data, mode) {
+      data.state.selected_index = mode;
+      data.state.eq_active = mode === 4;
+      return data;
     }
   `, scope);
   return scope;
@@ -212,4 +228,111 @@ test("polling still preserves an unsent local volume adjustment", async () => {
     return {volume, pending: pending.volume};
   `);
   assert.deepEqual(result, {volume: 8, pending: {volume: 8}});
+});
+
+test("factory modes hide all DIY sections and reject EQ interaction", async () => {
+  const result = await scenario(`
+    const outputs = [];
+    for (let mode = 0; mode < 5; mode++) {
+      accept(withMode(fixture(mode + 1), mode));
+      changeBand(0, 5);
+      outputs.push({mode, eqHidden: $("eqPanel").hidden,
+        libraryHidden: $("libraryPanel").hidden, canEdit: canEditEQ(), pendingEQ: pending.eq});
+    }
+    return outputs;
+  `);
+  for (const row of result) {
+    assert.equal(row.eqHidden, row.mode !== 4);
+    assert.equal(row.libraryHidden, row.mode !== 4);
+    assert.equal(row.canEdit, row.mode === 4);
+    assert.deepEqual(row.pendingEQ, row.mode === 4 ? {gains: [5,0,0,0,0,0]} : null);
+  }
+});
+
+test("mode switches send only the selected mode and wait for readback before exposing DIY", async () => {
+  const result = await scenario(`
+    accept(withMode(fixture(10, "first", [10,5,0,0,0,0]), 1));
+    let complete;
+    const requests = [];
+    api = (kind, payload) => {
+      requests.push({kind,payload});
+      return new Promise(resolve => { complete = resolve; });
+    };
+    const switching = changeMode(4);
+    const during = {eqHidden: $("eqPanel").hidden, disabled: $("reset").disabled};
+    await changeMode(2);
+    complete(fixture(11, "first", [10,5,0,0,0,0]));
+    await switching;
+    return {requests,during,after: {eqHidden: $("eqPanel").hidden, canEdit: canEditEQ(),gains}};
+  `);
+  assert.deepEqual(result, {
+    requests: [{kind:"mode",payload:{selected_index:4}}],
+    during: {eqHidden:true,disabled:true},
+    after: {eqHidden:false,canEdit:true,gains:[10,5,0,0,0,0]},
+  });
+});
+
+test("an external factory mode cancels a pending DIY adjustment", async () => {
+  const result = await scenario(`
+    accept(fixture(10));
+    changeBand(0,5);
+    accept(withMode(fixture(11), 2));
+    const requests = [];
+    api = async (kind,payload) => {requests.push({kind,payload});return withMode(fixture(12),2);};
+    await pump();
+    changeBand(1,5);
+    return {requests,pending:pending.eq,hidden:$("eqPanel").hidden};
+  `);
+  assert.deepEqual(result, {requests:[],pending:null,hidden:true});
+});
+
+test("a failed mode switch leaves the confirmed factory mode visible", async () => {
+  const result = await scenario(`
+    accept(withMode(fixture(10), 1));
+    api = async kind => {
+      if (kind === "mode") throw new Error("readback mismatch");
+      return withMode(fixture(11), 1);
+    };
+    await changeMode(4);
+    return {selected:snapshot.state.selected_index,hidden:$("eqPanel").hidden,requestedMode};
+  `);
+  assert.deepEqual(result, {selected:1,hidden:true,requestedMode:null});
+});
+
+test("a delayed saved-curve response cannot restore online state after a disconnect", async () => {
+  const result = await scenario(`
+    const savedResponse = fixture(10);
+    accept(savedResponse);
+    accept({...fixture(11),connection:"offline"});
+    accept(savedResponse);
+    return {connected,connection:snapshot.connection,canEdit:canEditEQ(),revision:snapshot.revision};
+  `);
+  assert.deepEqual(result,{connected:false,connection:"offline",canEdit:false,revision:11});
+});
+
+test("a same-device same-endpoint reconnect invalidates pending controls", async () => {
+  const result = await scenario(`
+    accept(fixture(10));
+    changeBand(0,5);
+    accept({...fixture(11,"first",[20,20,20,20,20,20]),connection_epoch:1});
+    const requests=[];
+    api=async(kind,payload)=>{requests.push({kind,payload});return fixture(12);};
+    await pump();
+    return {requests,gains,pending:pending.eq};
+  `);
+  assert.deepEqual(result,{requests:[],gains:[20,20,20,20,20,20],pending:null});
+});
+
+test("control HTTP requests carry the connection context displayed by the page", async () => {
+  const result = await scenario(`
+    accept({...fixture(10),connection_epoch:3});
+    let body;
+    fetch=async(url,options)=>{
+      body=JSON.parse(options.body);
+      return {ok:true,json:async()=>fixture(11)};
+    };
+    await api("mode",{selected_index:1});
+    return body;
+  `);
+  assert.deepEqual(result,{selected_index:1,context:{instance_id:"first",connection_epoch:3,device_id:"demo"}});
 });

@@ -8,6 +8,7 @@ Copy `examples/settings.json` to `config/settings.json`. The application never r
 | --- | --- | --- |
 | `bind` | `0.0.0.0` | IPv4 address on which the HTTP server listens. |
 | `port` | `18730` | HTTP port. |
+| `theme` | `black` | Fixed color palette: `black`, `white`, or `coffee`. Restart the service after changing it. |
 | `preferred_uuid` | `""` | Optional preferred discovered device identity. Empty selects a discovered speaker and keeps that choice while it remains available. |
 | `interfaces` | `[]` | Optional Linux interface names, such as `["eth0"]`. Empty automatically examines suitable broadcast-capable interfaces. |
 | `broadcast_targets` | `[]` | Optional broadcast destinations for unusual networks. Empty derives them from the host; do not put a speaker IP here. |
@@ -20,6 +21,18 @@ Copy `examples/settings.json` to `config/settings.json`. The application never r
 | `connect_timeout` | `3` | TCP connect and query timeout, in seconds. |
 
 The browser polls backend state every two seconds while visible and pauses polling when hidden. All browsers share the backend's speaker connection.
+
+## Speaker color
+
+Choose one palette in `config/settings.json`:
+
+- `black`: Ayu Dark-inspired near-black surfaces, warm gray text, gold controls, and orange EQ accents.
+- `white`: pale gray/white surfaces with restrained blue-gray controls and a soft slate EQ accent.
+- `coffee`: Gruvbox-inspired warm gray surfaces, cream text, orange controls, and golden EQ accents.
+
+The black palette follows [Ayu Dark](https://terminalcolors.com/themes/ayu/dark/), with near-black surfaces, warm gray text, and gold/orange accents. Secondary text and control outlines use brighter shades for readability. The coffee palette uses the warm gray/orange/yellow family from [Gruvbox](https://github.com/morhetz/gruvbox).
+
+Each is a single palette for all times of day. The application does not follow the operating system's light/dark setting or offer a theme selector. For example, set `"theme": "coffee"`, then restart the service. The HTML, PWA browser color, and install manifest use the configured theme; favicons, installation images, Apple touch icons, and manifest icons use matching theme artwork. On iOS, remove an existing home-screen shortcut and add the page again to refresh its icon.
 
 ## Environment overrides
 

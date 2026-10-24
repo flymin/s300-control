@@ -1,25 +1,25 @@
 "use strict";
-const CACHE = "s300-shell-v5";
+const CACHE = "s300-shell-v10-black";
 const ASSETS = [
   "./",
   "./index.html",
   "./app.css",
   "./app.js",
   "./manifest.webmanifest",
-  "./icons/v2/icon.svg",
-  "./icons/v2/app-1024.png",
-  "./icons/v2/app-128.png",
-  "./icons/v2/app-16.png",
-  "./icons/v2/app-192.png",
-  "./icons/v2/app-256.png",
-  "./icons/v2/app-32.png",
-  "./icons/v2/app-384.png",
-  "./icons/v2/app-48.png",
-  "./icons/v2/app-512.png",
-  "./icons/v2/app-96.png",
-  "./icons/v2/apple-touch-icon-1024-v3.png",
-  "./icons/v2/maskable-1024.png",
-  "./icons/v2/maskable-512.png",
+  "./icons/v4/black/icon.svg",
+  "./icons/v4/black/app-1024.png",
+  "./icons/v4/black/app-128.png",
+  "./icons/v4/black/app-16.png",
+  "./icons/v4/black/app-192.png",
+  "./icons/v4/black/app-256.png",
+  "./icons/v4/black/app-32.png",
+  "./icons/v4/black/app-384.png",
+  "./icons/v4/black/app-48.png",
+  "./icons/v4/black/app-512.png",
+  "./icons/v4/black/app-96.png",
+  "./icons/v4/black/apple-touch-icon-1024.png",
+  "./icons/v4/black/maskable-1024.png",
+  "./icons/v4/black/maskable-512.png",
 ];
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -11,6 +11,7 @@ let pending = { eq: null, volume: null },
   pumpTimer;
 let controlGeneration = 0;
 const retiredInstances = new Set();
+let requestedMode = null;
 let connected = false,
   backendReachable = false,
   toastTimer,
@@ -42,12 +43,17 @@ async function api(path, body) {
     body === undefined ? 5000 : 15000,
   );
   try {
+    const payload = body === undefined ? undefined :
+      ["eq", "volume", "mode"].includes(path) && snapshot ? {
+        ...body, context: {instance_id: snapshot.instance_id,
+          connection_epoch: snapshot.connection_epoch, device_id: snapshot.device?.id},
+      } : body;
     const response = await fetch(new URL(`api/${path}`, document.baseURI), {
       method: body === undefined ? "GET" : "POST",
       cache: "no-store",
       signal: controller.signal,
       headers: body === undefined ? {} : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: payload === undefined ? undefined : JSON.stringify(payload),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "这次操作未成功，请重试");
@@ -59,20 +65,98 @@ async function api(path, body) {
 
 function updateEnabled() {
   connected = backendReachable && snapshot?.connection === "online";
-  const eqReady = connected && Array.isArray(snapshot?.state?.gains);
+  const eqReady = canEditEQ();
   ["reset", "save"].forEach((id) => {
     $(id).disabled = !eqReady;
   });
   ["mute", "volume", "volumeDown", "volumeUp"].forEach((id) => {
-    $(id).disabled = !connected;
+    $(id).disabled = !connected || requestedMode !== null;
   });
   document.querySelectorAll(".band button, .preset").forEach((el) => {
     el.disabled = !eqReady;
+  });
+  document.querySelectorAll(".mode-option").forEach((button) => {
+    button.disabled = !connected || requestedMode !== null;
   });
   sliders.forEach(({ slider }) => {
     slider.setAttribute("aria-disabled", String(!eqReady));
     slider.tabIndex = eqReady ? 0 : -1;
   });
+}
+
+function isDIY() {
+  return snapshot?.state?.selected_index === 4;
+}
+
+function canEditEQ() {
+  return connected && requestedMode === null && isDIY() && Array.isArray(snapshot?.state?.gains);
+}
+
+function renderModes() {
+  const modes = snapshot?.sound_modes || [];
+  const options = $("modeOptions");
+  const key = JSON.stringify(modes);
+  if (options.dataset.modes !== key) {
+    options.replaceChildren(...modes.map((mode) => {
+      const button = document.createElement("button");
+      button.className = "mode-option";
+      button.dataset.mode = mode.id;
+      const title = document.createElement("strong");
+      title.textContent = mode.name;
+      const description = document.createElement("small");
+      description.textContent = mode.description;
+      button.append(title, description);
+      button.addEventListener("click", () => changeMode(mode.id));
+      return button;
+    }));
+    options.dataset.modes = key;
+  }
+  const current = modes.find((mode) => mode.id === snapshot?.state?.selected_index);
+  document.querySelectorAll(".mode-option").forEach((button) => {
+    const index = Number(button.dataset.mode);
+    button.classList.toggle("active", index === current?.id);
+    button.classList.toggle("pending", index === requestedMode);
+    button.setAttribute("aria-pressed", String(index === current?.id));
+    button.setAttribute("aria-busy", String(index === requestedMode));
+    button.disabled = !connected || requestedMode !== null;
+  });
+  $("modeStatus").textContent = requestedMode !== null
+    ? "正在切换…" : connected ? (current ? `当前：${current.name}` : "未识别模式") : "等待连接";
+  $("modeHint").textContent = isDIY()
+    ? "DIY 已启用，下方可调整六段 EQ 与声音曲线。"
+    : current ? "正在使用音箱预置音效。切换到 DIY，可调整六段 EQ 与声音曲线。"
+      : "连接后读取音箱当前的音效模式。";
+  $("eqPanel").hidden = !isDIY();
+  $("libraryPanel").hidden = !isDIY();
+  $("layout").hidden = !isDIY();
+  if ((!isDIY() || requestedMode !== null) && $("saveDialog").open)
+    $("saveDialog").close();
+}
+
+async function changeMode(index) {
+  if (!connected || requestedMode !== null || !Number.isInteger(index) ||
+      !(snapshot?.sound_modes || []).some((mode) => mode.id === index) ||
+      snapshot?.state?.selected_index === index) return;
+  discardPending();
+  const generation = controlGeneration;
+  requestedMode = index;
+  renderConnection();
+  renderModes();
+  try {
+    const result = await api("mode", { selected_index: index });
+    if (generation === controlGeneration) accept(result);
+  } catch (error) {
+    if (generation === controlGeneration) {
+      toast(error.name === "AbortError" ? "音效切换超时，请确认连接后重试" : error.message);
+      await poll();
+    }
+  } finally {
+    requestedMode = null;
+    renderConnection();
+    renderModes();
+    renderCurve();
+    renderVolume();
+  }
 }
 
 function renderConnection() {
@@ -95,11 +179,10 @@ function renderConnection() {
     : status !== "online"
       ? snapshot?.error ||
         "正在自动寻找音箱。请确认音箱已开机，并与服务处于同一局域网。"
-      : !snapshot?.state?.gains
+      : isDIY() && !snapshot?.state?.gains
         ? "当前固件未提供六段 EQ，已暂停 EQ 操作。"
-        : !snapshot?.state?.eq_active
-          ? "当前使用其他音效。调整或选择曲线后，将启用自定义 EQ。"
-          : "";
+        : snapshot?.state?.selected_index == null
+          ? "当前音效模式未识别，请先选择一种音效模式。" : "";
   $("notice").textContent = warning;
   $("notice").hidden = !warning;
   $("footerState").textContent = connected ? "已与音箱同步" : "自动重连中";
@@ -184,7 +267,7 @@ function renderVolume() {
 }
 
 function changeBand(index, value) {
-  if (!connected || !snapshot?.state?.gains) return;
+  if (!canEditEQ()) return;
   const next = Math.min(30, Math.max(-30, Math.round(value / 5) * 5));
   if (gains[index] === next) return;
   gains[index] = next;
@@ -192,6 +275,7 @@ function changeBand(index, value) {
 }
 
 function queueEQ() {
+  if (!canEditEQ()) return;
   pending.eq = { gains: [...gains] };
   syncLabel = "";
   renderCurve();
@@ -199,7 +283,7 @@ function queueEQ() {
 }
 
 function changeVolume(value) {
-  if (!connected) return;
+  if (!connected || requestedMode !== null) return;
   const next = Math.min(
     snapshot.state.max_volume || 30,
     Math.max(snapshot.state.min_volume || 0, Math.round(Number(value))),
@@ -228,10 +312,10 @@ function discardPending() {
 }
 
 async function pump() {
-  if (pumping || !connected) return;
+  if (pumping || !connected || requestedMode !== null) return;
   pumping = true;
   try {
-    while (connected && (pending.eq || pending.volume !== null)) {
+    while (connected && requestedMode === null && (pending.eq || pending.volume !== null)) {
       busyKind = pending.eq ? "eq" : "volume";
       const kind = busyKind,
         payload = pending[kind],
@@ -264,7 +348,7 @@ async function pump() {
     pumping = false;
     renderCurve();
     renderVolume();
-    if (connected && (pending.eq || pending.volume !== null)) schedulePump();
+    if (connected && requestedMode === null && (pending.eq || pending.volume !== null)) schedulePump();
   }
 }
 
@@ -407,7 +491,7 @@ function presetButton(preset) {
   text.append(title, desc);
   button.append(svg, text);
   button.addEventListener("click", () => {
-    if (connected) {
+    if (canEditEQ()) {
       gains = [...preset.gains];
       queueEQ();
     }
@@ -465,7 +549,9 @@ function accept(data) {
     instanceChanged ||
     !backendReachable ||
     (snapshot && data.device?.id !== snapshot.device?.id) ||
-    (snapshot && data.connection !== snapshot.connection);
+    (snapshot && data.connection_epoch !== snapshot.connection_epoch) ||
+    (snapshot && data.connection !== snapshot.connection) ||
+    (snapshot && data.state?.selected_index !== snapshot.state?.selected_index);
   if (
     contextChanged ||
     data.connection !== "online"
@@ -487,6 +573,7 @@ function accept(data) {
     volume = data.state.volume;
   renderPresets();
   renderConnection();
+  renderModes();
   renderCurve();
   renderVolume();
   $("infoName").textContent = data.state?.name || data.device?.name || "—";
@@ -519,6 +606,7 @@ async function poll() {
     backendReachable = false;
     discardPending();
     renderConnection();
+    renderModes();
     renderCurve();
     renderVolume();
   } finally {
@@ -539,6 +627,7 @@ $("mute").addEventListener("click", () =>
   changeVolume(volume === 0 ? rememberedVolume : 0),
 );
 $("reset").addEventListener("click", () => {
+  if (!canEditEQ()) return;
   gains = [0, 0, 0, 0, 0, 0];
   queueEQ();
 });
@@ -561,12 +650,14 @@ $("deviceSelect").addEventListener("change", async (event) => {
   }
 });
 $("save").addEventListener("click", () => {
+  if (!canEditEQ()) return;
   $("presetName").value = "";
   $("saveDialog").showModal();
   $("presetName").focus();
 });
 $("saveForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!canEditEQ()) return;
   $("saveSubmit").disabled = true;
   try {
     accept(
@@ -634,6 +725,7 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("online", poll);
 createSliders();
+renderModes();
 renderCurve();
 renderVolume();
 poll();
