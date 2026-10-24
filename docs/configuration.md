@@ -43,6 +43,6 @@ The container user needs write access to this directory. Runtime configuration a
 
 Automatic discovery skips common loopback, Docker, bridge, Tailscale, tunnel, and WireGuard interface names. It sends a limited broadcast and the directed broadcasts found on suitable interfaces. A non-Linux host can fall back to limited broadcast, but Linux host networking is the supported Docker deployment.
 
-If discovery reaches more than one speaker, the UI shows a device selector. Selection does not apply stored settings to the new device. For a stable preferred choice after a service restart, set `preferred_uuid` using an identity learned through `/api/state`; do not publish your own device identity in a committed example.
+If discovery reaches more than one speaker, the UI shows a device selector. Selection does not apply stored settings to the new device. For a stable preferred choice after a service restart, set `preferred_uuid` using an identity learned through `/api/state`.
 
 No IP access policy is part of these settings. Configure access in the reverse proxy.

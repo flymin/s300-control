@@ -1,5 +1,5 @@
 "use strict";
-const CACHE = "s300-shell-v4";
+const CACHE = "s300-shell-v5";
 const ASSETS = [
   "./",
   "./index.html",

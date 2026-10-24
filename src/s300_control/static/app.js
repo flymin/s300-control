@@ -9,6 +9,8 @@ let pending = { eq: null, volume: null },
   busyKind = null,
   pumping = false,
   pumpTimer;
+let controlGeneration = 0;
+const retiredInstances = new Set();
 let connected = false,
   backendReachable = false,
   toastTimer,
@@ -89,7 +91,7 @@ function renderConnection() {
     : "服务未连接";
   $("deviceName").textContent = snapshot?.device?.name || "寻找局域网音箱";
   const warning = !backendReachable
-    ? "暂时无法连接服务。请确认已连接家中局域网或 Tailscale，页面会自动重试。"
+    ? "暂时无法连接服务。请确认网络连接和服务地址，页面会自动重试。"
     : status !== "online"
       ? snapshot?.error ||
         "正在自动寻找音箱。请确认音箱已开机，并与服务处于同一局域网。"
@@ -216,6 +218,15 @@ function schedulePump() {
   pumpTimer = setTimeout(pump, 100);
 }
 
+function discardPending() {
+  pending = { eq: null, volume: null };
+  clearTimeout(pumpTimer);
+  busyKind = null;
+  draggingBand = null;
+  sliders.forEach(({ slider }) => slider.classList.remove("dragging"));
+  controlGeneration++;
+}
+
 async function pump() {
   if (pumping || !connected) return;
   pumping = true;
@@ -223,17 +234,20 @@ async function pump() {
     while (connected && (pending.eq || pending.volume !== null)) {
       busyKind = pending.eq ? "eq" : "volume";
       const kind = busyKind,
-        payload = pending[kind];
+        payload = pending[kind],
+        generation = controlGeneration;
       pending[kind] = null;
       renderCurve();
       renderVolume();
       try {
         const result = await api(kind, payload);
+        if (generation !== controlGeneration) break;
         busyKind = null;
         accept(result);
       } catch (error) {
+        if (generation !== controlGeneration) break;
         // Never replay a control change after an outage or reconnect.
-        pending = { eq: null, volume: null };
+        discardPending();
         busyKind = null;
         syncLabel = "未同步";
         toast(
@@ -250,6 +264,7 @@ async function pump() {
     pumping = false;
     renderCurve();
     renderVolume();
+    if (connected && (pending.eq || pending.volume !== null)) schedulePump();
   }
 }
 
@@ -308,7 +323,8 @@ function createSliders() {
       fromPointer(event);
     });
     slider.addEventListener("pointermove", (event) => {
-      if (slider.hasPointerCapture(event.pointerId)) fromPointer(event);
+      if (draggingBand === index && slider.hasPointerCapture(event.pointerId))
+        fromPointer(event);
     });
     const finish = () => {
       draggingBand = null;
@@ -441,21 +457,32 @@ function renderPresets() {
 }
 
 function accept(data) {
+  const instanceChanged = snapshot && data.instance_id !== snapshot.instance_id;
+  if (retiredInstances.has(data.instance_id)) return;
+  if (snapshot && !instanceChanged && data.revision < snapshot.revision) return;
+  if (instanceChanged) retiredInstances.add(snapshot.instance_id);
+  const contextChanged =
+    instanceChanged ||
+    !backendReachable ||
+    (snapshot && data.device?.id !== snapshot.device?.id) ||
+    (snapshot && data.connection !== snapshot.connection);
+  if (
+    contextChanged ||
+    data.connection !== "online"
+  )
+    discardPending();
   backendReachable = true;
-  if (snapshot && data.revision < snapshot.revision) return;
   snapshot = data;
   if (
     data.state?.gains &&
-    !pending.eq &&
-    busyKind !== "eq" &&
-    draggingBand === null
+    (contextChanged ||
+      (!pending.eq && busyKind !== "eq" && draggingBand === null))
   )
     gains = [...data.state.gains];
   if (
     data.state &&
-    pending.volume === null &&
-    busyKind !== "volume" &&
-    document.activeElement !== $("volume")
+    (contextChanged ||
+      (pending.volume === null && busyKind !== "volume"))
   )
     volume = data.state.volume;
   renderPresets();
@@ -490,6 +517,7 @@ async function poll() {
     accept(await api("state"));
   } catch (_) {
     backendReachable = false;
+    discardPending();
     renderConnection();
     renderCurve();
     renderVolume();
@@ -524,7 +552,7 @@ $("rescan").addEventListener("click", async () => {
   }
 });
 $("deviceSelect").addEventListener("change", async (event) => {
-  pending = { eq: null, volume: null };
+  discardPending();
   try {
     accept(await api("device", { id: event.target.value }));
     setTimeout(poll, 500);

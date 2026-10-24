@@ -4,7 +4,7 @@ S300 Control is a LAN device controller. It contains no login system, IP access 
 
 The HTTP backend validates request shapes and setting ranges, rejects cross-origin browser writes, and verifies settings through device readback. These checks do not replace network access restrictions.
 
-Runtime `config/`, environment files, credentials and raw device captures are not part of this repository. State endpoints may return network names and device identities; treat exported diagnostics accordingly.
+Discovery replies and state endpoints can include network names, device identities and MAC addresses. Remove these details from diagnostics before sharing them publicly.
 
 ## Reporting a vulnerability
 

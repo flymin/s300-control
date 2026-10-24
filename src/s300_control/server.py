@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small, dependency-free S300 service; no network settings in the frontend."""
+"""HTTP API, preset storage, and speaker connection management."""
 import copy
 import json
 import logging
@@ -113,6 +113,7 @@ class Controller:
         self.devices, self.device, self.raw = {}, None, None
         self.selected = str(config.get("preferred_uuid", ""))
         self.status, self.error = "discovering", "正在寻找局域网中的 S300"
+        self.instance_id = uuid.uuid4().hex
         self.revision, self.last_seen = 0, None
         self.connection = None
         self.threads = []
@@ -156,7 +157,8 @@ class Controller:
             }
             return {"connection": self.status, "error": self.error,
                     "device": copy.deepcopy(self.device), "devices": copy.deepcopy(list(self.devices.values())),
-                    "state": state, "revision": self.revision, "last_seen": self.last_seen,
+                    "state": state, "instance_id": self.instance_id,
+                    "revision": self.revision, "last_seen": self.last_seen,
                     "bands": list(BANDS), "presets": self.presets.list()}
 
     def _choose(self):
@@ -308,7 +310,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            # Reject cross-origin browser writes without adding a login flow.
+            # Reject browser writes from a different origin.
             origin = self.headers.get("Origin")
             if origin and urlsplit(origin).netloc != self.headers.get("Host"):
                 return self.respond(403, {"error": "请在服务页面内操作"})

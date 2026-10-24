@@ -1,6 +1,6 @@
 # Edifier S300 LAN protocol
 
-These notes describe observations on an Edifier S300 with firmware 01.13.07. They are not an official specification. All identities and addresses below are synthetic; the implementation always discovers the real address at runtime.
+These notes describe observations on an Edifier S300 with firmware 01.13.07. They are not an official specification.
 
 ## Transport and discovery
 
@@ -112,6 +112,6 @@ Keep writes serialized over one persistent connection. Unbounded reconnections c
 
 The transport behavior was established through device testing and inspection of Edifier Home request-building and TCP code, including the `com.edifier.s1000a` SDK, `SoundEffectWithJson`, `TcpClient`, `MessageBuffer`, and `CommandManager.encryptionPayload`. The XOR key corresponds to decimal 165.
 
-The official application's release information is available from [Edifier's application metadata endpoint](https://foreign-app.edifier.com/home/api/v1/apps?tag=EdifierHome). No application binaries, personal packet captures, or original device-state dumps are distributed in this repository.
+The official application's release information is available from [Edifier's application metadata endpoint](https://foreign-app.edifier.com/home/api/v1/apps?tag=EdifierHome).
 
 The device advertises additional settings, including factory reset and firmware operations. This project exposes only the independently verified EQ and volume controls.

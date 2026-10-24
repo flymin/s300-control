@@ -1,4 +1,4 @@
-"""UDP discovery on this host's LANs, without an IP/subnet baked into source."""
+"""Discover compatible speakers with UDP broadcasts on local interfaces."""
 import ipaddress
 import json
 import socket

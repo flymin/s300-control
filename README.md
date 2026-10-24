@@ -33,8 +33,6 @@ There is no frontend build step, account, cloud relay, or runtime package depend
 <img src="docs/assets/mobile.png" alt="The same equalizer in a compact phone layout" width="320">
 </details>
 
-*Screenshots use a synthetic speaker and example addresses. No personal device data is included.*
-
 ## What you get
 
 | | |
@@ -69,7 +67,7 @@ docker compose -f devlop/compose.yaml logs --tail=50 s300
 
 The container runs as UID/GID 1000 by default. If your checkout belongs to another user, set `S300_UID` and `S300_GID` to that user's IDs when starting Compose. The `config/` directory must be writable by the container user.
 
-Configuration and saved curves stay in `config/`, which is excluded from Git and the Docker build. There is no bundled deployment address or device identity. See [configuration](docs/configuration.md) and [reverse proxy deployment](docs/deployment.md).
+Configuration and saved curves stay in `config/`. See [configuration](docs/configuration.md) for available settings and [deployment](docs/deployment.md) for reverse proxy setup and backups.
 
 ### Run with Python
 
@@ -90,7 +88,7 @@ The installed command `s300-control` starts the same server. `s300 --url http://
 
 Serve the app through **HTTPS** with your existing reverse proxy. On iPhone, open the HTTPS URL in Safari, choose **Share → Add to Home Screen**, and enable **Open as Web App** if offered. On browsers that support an installation prompt, the app's install button opens it.
 
-The icon set includes a scalable SVG, 120/152/167/180 px Apple touch icons, a 1024 px Apple fallback, multiple PWA resolutions, and separate maskable entries. All PNGs are rendered from one design with antialiasing and lossless compression. Icon URLs are versioned independently from the old favicon.
+On iPhone, the page supplies a single 1024×1024 PNG for the home-screen icon. Other browsers use the multi-resolution and maskable icons in the manifest.
 
 The Service Worker caches the interface. Device state and control requests are always live: no cached status and no replay of changes after an outage. An offline interface cannot control an unreachable speaker.
 
@@ -108,7 +106,7 @@ flowchart LR
 
 The browser never connects directly to a speaker IP. The backend observes the speaker's LAN, matches replies to device identities, and owns the TCP connection. EQ drags update the interface immediately; only the latest pending value is sent while a transaction is in flight.
 
-IP access control and authentication belong to your reverse proxy. This project deliberately does not implement them. Keep the service on a trusted network or put it behind a proxy policy appropriate for your deployment.
+The service has no built-in authentication. Restrict access to trusted clients through your network or reverse proxy.
 
 ## Project map
 
@@ -126,11 +124,12 @@ devlop/            Dockerfile, Compose, and Docker build ignore rules
 ```sh
 python -m pip install -e .
 python -m unittest discover -s tests -v
+node --test tests/test_frontend.cjs
 node --check src/s300_control/static/app.js
 node --check src/s300_control/static/sw.js
 ```
 
-No physical speaker is needed for these tests. They cover fragmented frames, pushed heartbeats, ignored settings despite acknowledgements, device readback, address changes, request validation, persistent curves, and app-icon dimensions.
+No physical speaker is needed for these tests. They cover fragmented frames, pushed heartbeats, ignored settings despite acknowledgements, device readback, address changes, request validation, persistent curves, app-icon dimensions, and frontend recovery after disconnects or backend restarts.
 
 To explore the UI without a speaker:
 
@@ -158,7 +157,7 @@ python tools/generate_icons.py
 
 ## Feedback
 
-Bug reports and verified protocol findings are welcome. Include sanitized reproductions rather than raw captures from a personal network.
+Bug reports and verified protocol findings are welcome. Include the firmware version, steps to reproduce, and expected behavior.
 
 ## License
 

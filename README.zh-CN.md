@@ -33,8 +33,6 @@ S300 Control 是一个可以自托管的漫步者 S300 控制面板。六段 EQ�
 <img src="docs/assets/mobile.png" alt="适合手机的紧凑布局" width="320">
 </details>
 
-*截图全部来自匿名演示数据，不包含真实设备地址或个人网络信息。*
-
 ## 主要功能
 
 | 功能 | 使用体验 |
@@ -69,7 +67,7 @@ docker compose -f devlop/compose.yaml logs --tail=50 s300
 
 容器默认使用 UID/GID 1000。若目录属于其他用户，可通过 `S300_UID`、`S300_GID` 设置对应的 ID，确保容器用户能写入 `config/`。
 
-真实配置与曲线保存在 `config/`，该目录不会进入 Git 或镜像。示例配置中没有部署地址、设备 UUID 或固定音箱 IP。更多选项见[配置说明](docs/configuration.md)。
+配置与曲线保存在 `config/`。可用选项见[配置说明](docs/configuration.md)，反向代理设置和备份方法见[部署说明](docs/deployment.md)。
 
 ### 直接运行 Python
 
@@ -90,7 +88,7 @@ python -m s300_control
 
 通过现有反向代理提供 **HTTPS**。iPhone 使用 Safari 打开，轻点 **分享 → 添加到主屏幕**，若出现选项则启用“作为 Web App 打开”。支持安装提示的浏览器也可以直接使用页面中的安装按钮。
 
-图标包含 SVG 矢量源文件、120/152/167/180 px Apple touch icon、1024 px Apple 备用图标、多种 PWA 分辨率，以及单独的 maskable 声明。PNG 使用同一套图形高倍渲染、一次缩小并无损保存，图标路径也已更新版本。
+页面向 iPhone 提供单一的 1024×1024 PNG 主屏幕图标。其他浏览器使用 manifest 中的多分辨率图标和 maskable 图标。
 
 如果此前已经添加过旧版本，iOS 可能保留旧图标。删除原有主屏幕快捷方式，重新加载 HTTPS 页面后再添加，即可重新获取高清版本。详见[部署与图标说明](docs/deployment.md#pwa-and-app-icons)。
 
@@ -100,14 +98,14 @@ Service Worker 缓存的是界面。状态和控制接口始终实时请求，�
 
 浏览器只请求当前站点的后端，不直接连接音箱地址。后端负责发现和一条持久 TCP 控制连接；所有设备写入都需要回读确认。拖动时界面即时反馈，等待中的值会被最新值替换。
 
-IP 访问控制和鉴权由反向代理负责，本项目不实现这两项功能。可根据自己的部署，在代理中设置局域网、VPN 或其他访问策略。
+服务没有内置鉴权。请通过网络或反向代理，将访问范围限制在可信客户端。
 
 ```text
 src/s300_control/   Python 后端包和 PWA 静态资源
 tests/             协议、模拟 TCP 设备、HTTP API 和图标测试
-docs/              配置、部署、API、协议研究与匿名截图
+docs/              配置、部署、API、协议说明和界面截图
 examples/          通用配置示例
-tools/             匿名演示预览、图标生成
+tools/             界面演示预览、图标生成
 devlop/            Dockerfile、Compose 和 Docker 构建忽略规则
 ```
 
@@ -116,6 +114,7 @@ devlop/            Dockerfile、Compose 和 Docker 构建忽略规则
 ```sh
 python -m pip install -e .
 python -m unittest discover -s tests -v
+node --test tests/test_frontend.cjs
 node --check src/s300_control/static/app.js
 node --check src/s300_control/static/sw.js
 ```
@@ -136,7 +135,7 @@ python tools/generate_icons.py
 - 尚未确认的官方音效映射、输入切换、播放、关机和恢复出厂设置不暴露为操作。
 - 音箱待机或连接名额占满可能导致暂时离线；唤醒设备、关闭多余客户端后重试。
 
-欢迎反馈问题和经过验证的协议行为。问题报告请使用匿名复现材料，避免上传个人网络的原始抓包。
+欢迎反馈问题和经过验证的协议行为。问题报告请包含固件版本、复现步骤和预期行为。
 
 ## 许可证
 

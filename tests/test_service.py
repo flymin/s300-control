@@ -172,6 +172,17 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 503)
         self.assertTrue(self.controller.jobs.empty())
 
+    def test_state_identifies_backend_restart_independently_of_revision(self):
+        with self.request('/api/state') as response:
+            first = json.load(response)
+        with self.request('/api/state') as response:
+            self.assertEqual(json.load(response)['instance_id'], first['instance_id'])
+        self.http.controller = Controller(dict(DEFAULTS), self.presets)
+        with self.request('/api/state') as response:
+            restarted = json.load(response)
+        self.assertNotEqual(first['instance_id'], restarted['instance_id'])
+        self.assertEqual((first['revision'], restarted['revision']), (0, 0))
+
     def test_wrong_content_type_and_oversized_requests_rejected(self):
         with self.assertRaises(HTTPError) as error:
             self.request('/api/discover', {}, {'Content-Type': 'text/plain'})
