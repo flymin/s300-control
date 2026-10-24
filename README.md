@@ -19,6 +19,8 @@ English · [简体中文](README.zh-CN.md)
 
 S300 Control brings the speaker's six-band equalizer to a compact web interface. Drag a band, tap a preset, or save a curve you want to hear again. The backend discovers speakers on its own LAN and verifies every setting by reading it back from the device.
 
+**This is an independent, unofficial project** and is not affiliated with, endorsed by, or sponsored by Edifier. Product names are used solely to identify compatible devices.
+
 There is no frontend build step, account, cloud relay, or runtime package dependency. The UI is currently in Simplified Chinese; both documentation languages cover the same setup.
 
 ## A familiar place for your sound
@@ -160,4 +162,4 @@ Bug reports and verified protocol findings are welcome. Include sanitized reprod
 
 ## License
 
-[MIT](LICENSE). Edifier and S300 are trademarks of their respective owners. This is an independent community project, not an official Edifier application.
+[MIT](LICENSE). Edifier and S300 are trademarks of their respective owners.
