@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "s300-control"
+version = "0.1.0"
+description = "A self-hosted equalizer and PWA control panel for Edifier S300 speakers."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = []
+keywords = ["edifier", "s300", "equalizer", "pwa", "self-hosted"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Sound/Audio",
+]
+
+[project.optional-dependencies]
+artwork = ["Pillow>=11,<13"]
+
+[project.scripts]
+s300-control = "s300_control.server:main"
+s300 = "s300_control.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+s300_control = ["static/*", "static/icons/v2/*"]

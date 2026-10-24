@@ -1,0 +1,36 @@
+name: s300-control
+services:
+  s300:
+    build:
+      context: ../src
+      dockerfile: ../devlop/Dockerfile
+    image: s300-control:local
+    network_mode: host
+    restart: unless-stopped
+    init: true
+    user: "${S300_UID:-1000}:${S300_GID:-1000}"
+    environment:
+      S300_CONFIG: /config/settings.json
+      # Optional overrides: S300_BIND, S300_PORT, S300_PREFERRED_UUID.
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      all_proxy: ""
+      NO_PROXY: "*"
+      no_proxy: "*"
+    volumes:
+      - ../config:/config
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    logging:
+      driver: local
+      options:
+        max-size: 5m
+        max-file: "2"

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 330" role="img" aria-label="S300 Control. Fine-tune your everyday listening.">
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#1e2b21"/><stop offset="1" stop-color="#151a19"/></linearGradient><linearGradient id="wash" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#bcf28a" stop-opacity=".18"/><stop offset="1" stop-color="#bcf28a" stop-opacity="0"/></linearGradient></defs>
+  <rect width="1200" height="330" rx="26" fill="url(#bg)"/>
+  <rect x=".5" y=".5" width="1199" height="329" rx="26" fill="none" stroke="#39473a"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="62" y="69" font-size="12" fill="#a8ba9f" letter-spacing="3">LOCAL CONTROL · YOUR SOUND</text>
+    <text x="59" y="157" font-size="66" font-weight="700" fill="#f0f2eb" letter-spacing="-2">S300 Control</text>
+    <text x="62" y="201" font-size="21" fill="#b5c2b5">Fine-tune your everyday listening.</text>
+    <rect x="62" y="242" width="120" height="30" rx="15" fill="#bcf28a"/>
+    <text x="122" y="262" text-anchor="middle" font-size="12" font-weight="650" fill="#20321b">6-BAND EQ</text>
+    <text x="205" y="262" font-size="12" fill="#b5c2b5" letter-spacing="1">SELF-HOSTED  /  PWA  /  MIT</text>
+  </g>
+  <g transform="translate(735 43)">
+    <path d="M0 50H391M0 123H391M0 196H391" stroke="#3c4b3c" stroke-dasharray="3 6" fill="none"/>
+    <path d="M13 146 C45 146 60 98 86 98 S139 124 159 124 S210 51 232 51 S280 85 305 85 S352 118 378 118 L378 235H13Z" fill="url(#wash)"/>
+    <path d="M13 146 C45 146 60 98 86 98 S139 124 159 124 S210 51 232 51 S280 85 305 85 S352 118 378 118" stroke="#bcf28a" stroke-width="3" fill="none"/>
+    <g stroke="#4b5d48" stroke-width="7" stroke-linecap="round"><path d="M13 22V220M86 22V220M159 22V220M232 22V220M305 22V220M378 22V220"/></g>
+    <g fill="#bcf28a"><rect x="0" y="138" width="26" height="16" rx="5"/><rect x="73" y="90" width="26" height="16" rx="5"/><rect x="146" y="116" width="26" height="16" rx="5"/><rect x="219" y="43" width="26" height="16" rx="5"/><rect x="292" y="77" width="26" height="16" rx="5"/><rect x="365" y="110" width="26" height="16" rx="5"/></g>
+  </g>
+</svg>

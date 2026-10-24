@@ -1,0 +1,25 @@
+# Deployment configuration and saved curves are private to each installation.
+/config/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+
+# Python and local tooling.
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

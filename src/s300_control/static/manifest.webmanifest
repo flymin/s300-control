@@ -1,0 +1,56 @@
+{
+  "id": "./",
+  "name": "S300 调音台",
+  "short_name": "S300",
+  "description": "六段 EQ、音量与自定义声音曲线",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#151a19",
+  "theme_color": "#151a19",
+  "icons": [
+    {
+      "src": "./icons/v2/app-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/v2/app-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/v2/app-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/v2/app-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/v2/app-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/v2/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/v2/maskable-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
